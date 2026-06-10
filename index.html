@@ -550,10 +550,26 @@ function speak(text){
   u.lang = 'ja-JP'; u.rate = 1.15; u.pitch = 0.85;
   speechSynthesis.speak(u);
 }
-/* pre-rendered neural narration (edge-tts Keita); falls back to speechSynthesis */
-let curAudio = null;
+/* pre-rendered neural narration (edge-tts Keita); falls back to speechSynthesis.
+   One persistent <audio> element, unlocked inside the start-button gesture, so
+   programmatic playback also works on iOS Safari / mobile browsers. */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+let voiceEl = null;
+function ensureVoiceEl(){
+  if (!voiceEl){
+    voiceEl = new Audio();
+    voiceEl.setAttribute('playsinline', '');
+    voiceEl.preload = 'auto';
+  }
+  return voiceEl;
+}
+function unlockVoice(){
+  const v = ensureVoiceEl();
+  v.src = SILENT_WAV;
+  v.play().catch(() => {});
+}
 function stopLine(){
-  if (curAudio){ curAudio.pause(); curAudio = null; }
+  if (voiceEl) voiceEl.pause();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 function playLine(ch, i, text){
@@ -561,9 +577,10 @@ function playLine(ch, i, text){
   stopLine();
   const key = 'c' + ch + '_' + i;
   const src = (window.VOICE_B64 && window.VOICE_B64[key]) || ('voice/' + key + '.mp3');
-  const a = new Audio(src);
-  curAudio = a;
-  a.play().catch(() => { curAudio = null; speak(text); });
+  const v = ensureVoiceEl();
+  v.src = src;
+  v.currentTime = 0;
+  v.play().catch(() => speak(text));
 }
 
 /* ---------- environments ---------- */
@@ -867,13 +884,17 @@ loop();
 document.getElementById('bStart').onclick = () => {
   document.getElementById('splash').style.display = 'none';
   initAudio();
+  unlockVoice();
   playing = true;
   goTo(0);
 };
 document.getElementById('bPlay').onclick = function(){
   playing = !playing;
   this.textContent = playing ? '⏸ 一時停止' : '▶ 再生';
-  if (curAudio){ if (playing) curAudio.play(); else curAudio.pause(); }
+  if (voiceEl && voiceEl.src && voiceEl.src !== SILENT_WAV){
+    if (playing && !voiceEl.ended) voiceEl.play().catch(() => {});
+    else if (!playing) voiceEl.pause();
+  }
   if ('speechSynthesis' in window){ if (playing) speechSynthesis.resume(); else speechSynthesis.pause(); }
 };
 document.getElementById('bPrev').onclick = () => goTo(Math.max(0, chIdx-1));
@@ -894,6 +915,8 @@ window.__dbg = {
   goTo: i => goTo(i),
   seek: s => { chT = s; },
   mute: () => { audioOn = false; if (droneGain) droneGain.gain.value = 0; stopLine(); },
+  voiceEl: () => ensureVoiceEl(),
+  say: (c, i) => playLine(c, i, 'test'),
   step: (n = 240) => {
     if (chIdx < 0) return;
     const c = CH[chIdx];
