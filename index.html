@@ -99,14 +99,16 @@
 
   /* ---- mobile ---- */
   @media (max-width: 640px) {
+    #barBot { height:13vh; }
+    #lower { bottom:13vh; padding-bottom:10px; }
     #badge { font-size:10px; padding:4px 8px; left:10px; letter-spacing:.15em; }
     #cgTag { font-size:9px; padding:4px 8px; right:10px; }
     #kicker { font-size:10px; margin-left:14px; padding:4px 28px 4px 10px; letter-spacing:.1em; }
     #chTitle { font-size:19px; margin:4px 0 8px 14px; letter-spacing:.08em; }
-    #sub { font-size:14.5px; padding:0 4vw; min-height:46px; line-height:1.6; }
-    #ctrl { bottom:8.2vh; right:6px; gap:4px; }
-    #ctrl button { padding:5px 7px; font-size:10.5px; }
-    #dots { gap:7px; bottom:2.6vh; }
+    #sub { font-size:14.5px; padding:0 3vw; min-height:46px; line-height:1.6; }
+    #ctrl { left:0; right:0; bottom:4.6vh; gap:4px; justify-content:center; flex-wrap:nowrap; }
+    #ctrl button { padding:5px 6px; font-size:10px; letter-spacing:0; }
+    #dots { gap:8px; bottom:1.6vh; }
     #dots span { width:7px; height:7px; }
     #titleCard .y { font-size:12px; letter-spacing:.3em; padding:0 5vw; text-align:center; }
     #titleCard .s { font-size:13px; }
@@ -200,7 +202,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.35;
+renderer.toneMappingExposure = 1.5;
 document.getElementById('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -451,6 +453,7 @@ function setIdle(g){
   g.userData.arms.L.rotation.x = 0; g.userData.arms.R.rotation.x = 0;
   g.position.y = g.userData.baseY;
 }
+const sm = u => { u = Math.max(0, Math.min(1, u)); return u*u*(3-2*u); };
 function pathPoint(pts, u){
   u = Math.max(0, Math.min(1, u));
   const n = pts.length - 1;
@@ -617,11 +620,11 @@ function playLine(ch, i, text){
 
 /* ---------- environments ---------- */
 const ENV = {
-  night:  { sky:'#101a30', sunC:'#8a9cd0', sunI:0.9,  ambI:0.8,  sunP:[-80,90,50] },
-  dawn:   { sky:'#24304a', sunC:'#d09a70', sunI:1.3,  ambI:0.9,  sunP:[-80,90,50] },
-  fire:   { sky:'#2e1c28', sunC:'#c07a50', sunI:1.1,  ambI:0.8,  sunP:[-80,90,50] },
-  day:    { sky:'#7e93b5', sunC:'#ffe8c0', sunI:1.8,  ambI:1.15, sunP:[70,120,-80] },
-  dusk:   { sky:'#3d1a20', sunC:'#d06038', sunI:1.2,  ambI:0.75, sunP:[-110,35,-50] }
+  night:  { sky:'#182742', sunC:'#92a6dc', sunI:1.15, ambI:1.05, sunP:[-80,90,50] },
+  dawn:   { sky:'#2c3a58', sunC:'#d8a47a', sunI:1.5,  ambI:1.1,  sunP:[-80,90,50] },
+  fire:   { sky:'#362230', sunC:'#c98456', sunI:1.25, ambI:0.95, sunP:[-80,90,50] },
+  day:    { sky:'#7e93b5', sunC:'#ffe8c0', sunI:1.8,  ambI:1.2,  sunP:[70,120,-80] },
+  dusk:   { sky:'#46202a', sunC:'#d86a40', sunI:1.3,  ambI:0.85, sunP:[-110,35,-50] }
 };
 let envT = ENV.night;
 function setEnv(name){ envT = ENV[name]; }
@@ -748,6 +751,14 @@ const CH = [
     if (ct < 5.0) arm.rotation.x = -Math.min(1, ct/5.0) * 2.4;
     else if (ct < 5.25) { arm.rotation.x = -2.4 + (ct-5.0)/0.25 * 2.1; }
     else arm.rotation.x = -0.3;
+    // 教皇のリアクション: 打たれて傾ぎ、ゆっくり起き直すが俯いたまま
+    if (ct >= 5.2){
+      const hit = sm((ct - 5.2) / 0.22);
+      const rec = sm((ct - 5.7) / 2.0);
+      pope.rotation.z = -0.42 * hit + 0.32 * rec;
+      pope.rotation.x = 0.14 * rec;
+      sciarra.position.z = -35.6 + 0.5 * rec;     // シャッラは一歩引く
+    } else { pope.rotation.z = 0; pope.rotation.x = 0; }
     if (!this.slapped && ct >= 5.2){
       this.slapped = true; thud();
       const fl = document.getElementById('flash');
@@ -755,7 +766,7 @@ const CH = [
       setTimeout(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = 0; }, 60);
       setTimeout(() => { fl.style.transition = ''; }, 800);
     } },
-  exit(){ pope.scale.set(1,1,1); } },
+  exit(){ pope.scale.set(1,1,1); pope.rotation.set(0,0,0); } },
 
 { no:'第六章', title:'市民蜂起', kick:'9月9日　「教皇万歳！」', dur:19.5, env:'day',
   cam:[ {t:0,p:[28,16,20],l:[0,3,46]}, {t:1,p:[15,12,70],l:[0,4,92]} ],
@@ -800,8 +811,8 @@ const CH = [
   enter(){ hideAll(); setEnv('dusk');
     brazier.intensity = 14; gateTorch.intensity = 0;
     place(pope, 0, -36, 0, 2);
-    pope.rotation.x = 0.18;
-    this.funshi = false;
+    pope.rotation.set(0.18, 0, 0);
+    this.funshi = false; this.fell = false;
     bell(); },
   tick(p, t){
     const ct = p * this.dur;
@@ -811,8 +822,31 @@ const CH = [
       bell(); thud();
     }
     if (this.funshi && ct >= 20.5)
-      document.getElementById('funshi').classList.remove('on'); },
-  exit(){ pope.rotation.x = 0;
+      document.getElementById('funshi').classList.remove('on');
+    // 憤死の演技: 震え→胸を掴む→膝から崩れる→倒れ伏す
+    const a = pope.userData.arms;
+    if (ct < 11){
+      pope.rotation.x = 0.18; pope.rotation.z = 0;
+    } else if (ct < 16.6){                       // 怒りに震える
+      pope.rotation.x = 0.18;
+      pope.rotation.z = Math.sin(t * 22) * 0.028;
+    } else if (ct < 17.6){                       // 胸を掴む
+      const k = sm((ct - 16.6) / 1.0);
+      pope.rotation.x = 0.18 - 0.28 * k;
+      pope.rotation.z = Math.sin(t * 22) * 0.025 * (1 - k);
+      a.L.rotation.x = -1.9 * k; a.R.rotation.x = -1.9 * k;
+    } else if (ct < 18.8){                       // 膝から崩れる
+      const k = sm((ct - 17.6) / 1.2);
+      pope.rotation.x = -0.1 + 0.5 * k;
+      pope.position.y = 2 - 0.25 * k;
+    } else {                                     // 倒れ伏す(足元を支点に前へ)
+      const k = sm((ct - 18.8) / 1.2);
+      pope.rotation.x = 0.4 + 1.1 * k;
+      pope.position.y = 1.75 + 0.53 * k;
+      a.L.rotation.x = -1.9 + 1.4 * k; a.R.rotation.x = -1.9 + 1.4 * k;
+      if (!this.fell && k >= 1){ this.fell = true; thud(); }
+    } },
+  exit(){ pope.rotation.set(0, 0, 0); pope.position.y = 2;
     document.getElementById('funshi').classList.remove('on'); } }
 ];
 
